@@ -2,7 +2,7 @@ package ai.openclaw.android.ui.chat
 
 import ai.openclaw.android.chat.ChatSessionEntry
 
-private const val RECENT_WINDOW_MS = 24 * 60 * 60 * 1000L
+private const val RECENT_WINDOW_MS = 72 * 60 * 60 * 1000L  // 72 hours (3 days) instead of 24
 
 fun resolveSessionChoices(
   currentSessionKey: String,

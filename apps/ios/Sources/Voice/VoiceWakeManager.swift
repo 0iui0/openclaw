@@ -159,14 +159,14 @@ final class VoiceWakeManager: NSObject {
 
         let micOk = await Self.requestMicrophonePermission()
         guard micOk else {
-            self.statusText = "Microphone permission denied"
+            self.statusText = "Microphone permission denied. Please enable in Settings."
             self.isListening = false
             return
         }
 
         let speechOk = await Self.requestSpeechPermission()
         guard speechOk else {
-            self.statusText = "Speech recognition permission denied"
+            self.statusText = "Speech recognition permission denied. Please enable in Settings."
             self.isListening = false
             return
         }
@@ -364,18 +364,45 @@ final class VoiceWakeManager: NSObject {
     }
 
     private nonisolated static func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation(isolation: nil) { cont in
-            AVAudioApplication.requestRecordPermission { ok in
-                cont.resume(returning: ok)
+        // Check current permission status
+        let audioSession = AVAudioSession.sharedInstance()
+        let status = audioSession.recordPermission
+
+        switch status {
+        case .granted:
+            return true
+        case .denied:
+            return false
+        case .undetermined:
+            // Request permission
+            return await withCheckedContinuation(isolation: nil) { cont in
+                AVAudioApplication.requestRecordPermission { ok in
+                    cont.resume(returning: ok)
+                }
             }
+        @unknown default:
+            return false
         }
     }
 
     private nonisolated static func requestSpeechPermission() async -> Bool {
-        await withCheckedContinuation(isolation: nil) { cont in
-            SFSpeechRecognizer.requestAuthorization { status in
-                cont.resume(returning: status == .authorized)
+        // Check current authorization status
+        let status = SFSpeechRecognizer.authorizationStatus()
+
+        switch status {
+        case .authorized:
+            return true
+        case .denied, .restricted:
+            return false
+        case .notDetermined:
+            // Request authorization
+            return await withCheckedContinuation(isolation: nil) { cont in
+                SFSpeechRecognizer.requestAuthorization { newStatus in
+                    cont.resume(returning: newStatus == .authorized)
+                }
             }
+        @unknown default:
+            return false
         }
     }
 }

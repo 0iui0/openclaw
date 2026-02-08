@@ -101,7 +101,7 @@ public final class OpenClawChatViewModel {
 
     public var sessionChoices: [OpenClawChatSessionEntry] {
         let now = Date().timeIntervalSince1970 * 1000
-        let cutoff = now - (24 * 60 * 60 * 1000)
+        let cutoff = now - (72 * 60 * 60 * 1000)  // 72 hours (3 days) instead of 24
         let sorted = self.sessions.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
         var seen = Set<String>()
         var recent: [OpenClawChatSessionEntry] = []
