@@ -77,7 +77,10 @@ final class TalkModeManager: NSObject {
         if self.isListening { return }
 
         self.logger.info("start")
+
+        // Reset any previous error state
         self.statusText = "Requesting permissions…"
+        self.isListening = false
         let micOk = await Self.requestMicrophonePermission()
         guard micOk else {
             self.logger.warning("start blocked: microphone permission denied")
@@ -88,6 +91,13 @@ final class TalkModeManager: NSObject {
         guard speechOk else {
             self.logger.warning("start blocked: speech permission denied")
             self.statusText = "Speech recognition permission denied. Please enable in Settings."
+            return
+        }
+
+        // Check gateway before proceeding
+        guard let gateway = self.gateway else {
+            self.statusText = "Gateway not connected"
+            self.logger.warning("start blocked: gateway not connected")
             return
         }
 
@@ -167,10 +177,41 @@ final class TalkModeManager: NSObject {
         self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             if let error {
-                if !self.isSpeaking {
-                    self.statusText = "Speech error: \(error.localizedDescription)"
+                // Handle specific speech recognition errors
+                let nsError = error as NSError
+                if nsError.domain == SFSpeechRecognizerErrorDomain {
+                    switch nsError.code {
+                    case SFSpeechRecognizerErrorCode.notAvailable.rawValue:
+                        if !self.isSpeaking {
+                            self.statusText = "Speech recognition not available"
+                        }
+                        self.logger.error("speech recognizer not available")
+                    case SFSpeechRecognizerErrorCode.recognizerUnavailable.rawValue:
+                        if !self.isSpeaking {
+                            self.statusText = "Speech recognizer unavailable"
+                        }
+                        self.logger.error("speech recognizer unavailable")
+                    default:
+                        // For errors like "no speech detected", show more user-friendly message
+                        if nsError.localizedDescription.contains("no speech") ||
+                           nsError.localizedDescription.contains("No speech") {
+                            if !self.isSpeaking {
+                                self.statusText = "Listening... (speak louder)"
+                            }
+                            self.logger.debug("no speech detected, continuing to listen")
+                        } else {
+                            if !self.isSpeaking {
+                                self.statusText = "Speech error: \(error.localizedDescription)"
+                            }
+                            self.logger.debug("speech recognition error: \(error.localizedDescription, privacy: .public)")
+                        }
+                    }
+                } else {
+                    if !self.isSpeaking {
+                        self.statusText = "Speech error: \(error.localizedDescription)"
+                    }
+                    self.logger.debug("speech recognition error: \(error.localizedDescription, privacy: .public)")
                 }
-                self.logger.debug("speech recognition error: \(error.localizedDescription, privacy: .public)")
             }
             guard let result else { return }
             let transcript = result.bestTranscription.formattedString
