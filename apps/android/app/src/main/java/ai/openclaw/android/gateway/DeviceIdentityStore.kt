@@ -10,6 +10,7 @@ import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 @Serializable
 data class DeviceIdentity(
@@ -22,6 +23,9 @@ data class DeviceIdentity(
 class DeviceIdentityStore(context: Context) {
   private val json = Json { ignoreUnknownKeys = true }
   private val identityFile = File(context.filesDir, "openclaw/identity/device.json")
+
+  // BouncyCastle provider instance for Ed25519 support
+  private val bcProvider = BouncyCastleProvider()
 
   @Synchronized
   fun loadOrCreate(): DeviceIdentity {
@@ -44,9 +48,18 @@ class DeviceIdentityStore(context: Context) {
     return try {
       val privateKeyBytes = Base64.decode(identity.privateKeyPkcs8Base64, Base64.DEFAULT)
       val keySpec = PKCS8EncodedKeySpec(privateKeyBytes)
-      val keyFactory = KeyFactory.getInstance("Ed25519")
+      // Try default provider first, then fallback to BouncyCastle
+      val keyFactory = try {
+        KeyFactory.getInstance("Ed25519")
+      } catch (e: java.security.NoSuchAlgorithmException) {
+        KeyFactory.getInstance("Ed25519", bcProvider)
+      }
       val privateKey = keyFactory.generatePrivate(keySpec)
-      val signature = Signature.getInstance("Ed25519")
+      val signature = try {
+        Signature.getInstance("Ed25519")
+      } catch (e: java.security.NoSuchAlgorithmException) {
+        Signature.getInstance("Ed25519", bcProvider)
+      }
       signature.initSign(privateKey)
       signature.update(payload.toByteArray(Charsets.UTF_8))
       base64UrlEncode(signature.sign())
@@ -97,7 +110,12 @@ class DeviceIdentityStore(context: Context) {
   }
 
   private fun generate(): DeviceIdentity {
-    val keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+    // Try default provider first, then fallback to BouncyCastle
+    val keyPair = try {
+      KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+    } catch (e: java.security.NoSuchAlgorithmException) {
+      KeyPairGenerator.getInstance("Ed25519", bcProvider).generateKeyPair()
+    }
     val spki = keyPair.public.encoded
     val rawPublic = stripSpkiPrefix(spki)
     val deviceId = sha256Hex(rawPublic)
