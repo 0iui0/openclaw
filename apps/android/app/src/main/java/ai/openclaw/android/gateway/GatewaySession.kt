@@ -629,7 +629,12 @@ class GatewaySession(
     val scheme = parsed?.scheme?.trim().orEmpty().ifBlank { "http" }
 
     if (trimmed.isNotBlank() && !isLoopbackHost(host)) {
-      return trimmed
+      // Use the gateway's port instead of the canvas port from the gateway response
+      // This fixes the case where the gateway sends a canvas URL with a different port
+      val effectiveHost = if (host.isNotEmpty()) host else endpoint.host.trim()
+      val effectivePort = endpoint.port // Use the gateway connection port
+      val formattedHost = if (effectiveHost.contains(":")) "[$effectiveHost]" else effectiveHost
+      return "$scheme://$formattedHost:$effectivePort"
     }
 
     val fallbackHost =
@@ -638,7 +643,7 @@ class GatewaySession(
         ?: endpoint.host.trim()
     if (fallbackHost.isEmpty()) return trimmed.ifBlank { null }
 
-    val fallbackPort = endpoint.canvasPort ?: if (port > 0) port else 18793
+    val fallbackPort = endpoint.port // Use the gateway connection port
     val formattedHost = if (fallbackHost.contains(":")) "[${fallbackHost}]" else fallbackHost
     return "$scheme://$formattedHost:$fallbackPort"
   }
