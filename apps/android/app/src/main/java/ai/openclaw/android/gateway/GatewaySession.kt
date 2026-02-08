@@ -193,7 +193,16 @@ class GatewaySession(
     suspend fun connect() {
       val scheme = if (tls != null) "wss" else "ws"
       val url = "$scheme://${endpoint.host}:${endpoint.port}"
-      val request = Request.Builder().url(url).build()
+      // Set Origin header to identify as Android node app
+      val origin = if (tls != null) {
+        "https://openclaw.android"
+      } else {
+        "http://openclaw.android"
+      }
+      val request = Request.Builder()
+        .url(url)
+        .header("Origin", origin)
+        .build()
       socket = client.newWebSocket(request, Listener())
       try {
         connectDeferred.await()
