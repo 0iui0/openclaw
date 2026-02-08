@@ -178,35 +178,23 @@ final class TalkModeManager: NSObject {
             guard let self else { return }
             if let error {
                 // Handle specific speech recognition errors
-                let nsError = error as NSError
-                if nsError.domain == SFSpeechRecognizerErrorDomain {
-                    switch nsError.code {
-                    case SFSpeechRecognizerErrorCode.notAvailable.rawValue:
-                        if !self.isSpeaking {
-                            self.statusText = "Speech recognition not available"
-                        }
-                        self.logger.error("speech recognizer not available")
-                    case SFSpeechRecognizerErrorCode.recognizerUnavailable.rawValue:
-                        if !self.isSpeaking {
-                            self.statusText = "Speech recognizer unavailable"
-                        }
-                        self.logger.error("speech recognizer unavailable")
-                    default:
-                        // For errors like "no speech detected", show more user-friendly message
-                        if nsError.localizedDescription.contains("no speech") ||
-                           nsError.localizedDescription.contains("No speech") {
-                            if !self.isSpeaking {
-                                self.statusText = "Listening... (speak louder)"
-                            }
-                            self.logger.debug("no speech detected, continuing to listen")
-                        } else {
-                            if !self.isSpeaking {
-                                self.statusText = "Speech error: \(error.localizedDescription)"
-                            }
-                            self.logger.debug("speech recognition error: \(error.localizedDescription, privacy: .public)")
-                        }
+                let errorDescription = error.localizedDescription.lowercased()
+
+                // For errors like "no speech detected", show more user-friendly message
+                if errorDescription.contains("no speech") || errorDescription.contains("speech not detected") {
+                    if !self.isSpeaking {
+                        self.statusText = "Listening... (speak louder)"
                     }
+                    self.logger.debug("no speech detected, continuing to listen")
+                } else if errorDescription.contains("recognizer unavailable") ||
+                          errorDescription.contains("not available") {
+                    // Handle recognizer availability errors
+                    if !self.isSpeaking {
+                        self.statusText = "Speech recognition unavailable"
+                    }
+                    self.logger.error("speech recognizer unavailable: \(error.localizedDescription, privacy: .public)")
                 } else {
+                    // For other errors, show the error description
                     if !self.isSpeaking {
                         self.statusText = "Speech error: \(error.localizedDescription)"
                     }
